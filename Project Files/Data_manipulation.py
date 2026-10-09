@@ -1,19 +1,14 @@
 """
+Data_manipulation.py - Data manipulation functions for processing disto and XPAD CSV files.
 
-Open up both files from two different sources:
-- Within the disto output we need to take:
-    - Laser ID, horizontal distance, azimuth, vertical distance, date, time, notes
-- Will have to error check the notes field to make sure it is in the correct format and contains the necessary information. If not in the correct format, maybe add to a list
-to be checked through by the user. 
+Reads and processes disto and XPAD CSV files, extracting necessary fields and performing calculations to generate new coordinates. The output is written in KTF format.
 
-
-- Within the XPAD output we need to take:
-    - XPAD ID, Code, Eastings, Northings, Height, Date, Time
-
-
-Need to find a way of taking the 'notes' from the disto and seperating the XPADID, tree code and genus
-
-Complete calculations for the new eastings northings and height based on the horizontal distance, azimuth, and vertical distance from the disto output.
+Usage from Main.py:
+    import Data_manipulation as DM (XX)
+    - DM.reduce_disto_output(disto_file, skip_ids=())
+    - DM.reduce_xpad_output(xpad_file)
+    - DM.calculate_new_coordinates(disto_data, xpad_data)
+    - DM.write_to_ktf_format(output_file, new_coordinates)
 """
 import csv
 import math
@@ -36,19 +31,20 @@ def reduce_disto_output(disto_file, skip_ids=()):
         for row in reader:
             if row['Measurement #'].strip() in skip_ids:
                 continue  # Failed validation - already listed in the validation report
-            uncleansed_notes = row['Notes'] #Still need to tokenise the notes field to extract the XPADID, tree code and genus
+            uncleansed_notes = row['Notes'] 
             
             cleansed_xpad_id, cleansed_tree_code, cleansed_genus = cleanse_notes(uncleansed_notes)
             cleansed_tree_rad = cleanse_tree_dims(cleansed_tree_code)
             reduced_cleansed_row = {
                 'laser_id': row['Measurement #'],  # Assuming the first column is Laser ID
                 'horizontal_distance': float(row['Horizontal Distance (m)']),
+                'vertical_distance': float(row['Vertical Distance (m)']),
                 'azimuth': float(row['Azimuth (deg)']),
                 'date': row['Date'],
                 'time': row['Time'],
                 'tree_code': cleansed_tree_code,
-                'genus': cleansed_genus,
-                'tree_radius': cleansed_tree_rad,
+                'genus': cleansed_genus + '*', # Add asterisk to genus
+                'tree_radius': cleansed_tree_rad, 
                 'xpad_id': cleansed_xpad_id
             }
             reduced_data.append(reduced_cleansed_row)
@@ -72,6 +68,7 @@ def reduce_xpad_output(xpad_file):
             try:
                 eastings = float(row['Point East/E'])
                 northings = float(row['Point North/N'])
+                height = float(row['Point Z/Z'])
             except ValueError:
                 continue  # Bad coordinates - already listed in the validation report
             reduced_row = {
@@ -79,6 +76,7 @@ def reduce_xpad_output(xpad_file):
                 'code': row['Code'],
                 'eastings': eastings,
                 'northings': northings,
+                'height': height,
                 'date': row['Date start (local)'],
                 'time': row['Time start (local)']
             }
@@ -107,11 +105,6 @@ def cleanse_tree_dims(code):
         tree_rad = tree_diam/2
         return tree_rad
 
-#----------------------------------------Quality Assurance----------------------------------------
-
-
-
-#-------------------------------------------------------------------------------------------------
 
 def calculate_new_coordinates(disto_data, xpad_data):
     """
@@ -131,35 +124,50 @@ def calculate_new_coordinates(disto_data, xpad_data):
         if not xpad_row:
             continue  # No matching XPAD row found
 
-        # Perform calculations here to update Eastings, Northings, and Height
-        # This is a placeholder for the actual calculation logic
-        # Example: new_eastings = xpad_row['eastings'] + some_calculation(disto_row)
-        # Update the xpad_row with new values
-        # xpad_row['eastings'] = new_eastings
-        # xpad_row['northings'] = new_northings
         original_eastings = xpad_row['eastings']
         original_northings = xpad_row['northings']
+        original_height = xpad_row['height']
+
         azimuth_rad = math.radians(disto_row['azimuth'])
+
         horiz_dist = disto_row['horizontal_distance']
         girth_factor_n = disto_row['tree_radius'] * math.cos(azimuth_rad)
-        girth_factor_e = disto_row['tree_radius'] * math.sin(azimuth_rad)
+        girth_factor_e = disto_row['tree_radius'] * math.sin(azimuth_rad) 
 
         new_eastings = original_eastings + girth_factor_e + horiz_dist * math.sin(azimuth_rad)
         new_northings = original_northings + girth_factor_n + horiz_dist * math.cos(azimuth_rad)
+        new_height = original_height + disto_row['vertical_distance']
+
         new_ktf_coordinates.append({
-            'Description': disto_row['genus'] + '*',
+            'Description': disto_row['genus'],
             'Code/-E': disto_row['tree_code'],
             'Joint Pt ID': xpad_id + '-' + disto_row['laser_id'],
             'eastings': f"{new_eastings:.3f}",
-            'northings': f"{new_northings:.3f}"
+            'northings': f"{new_northings:.3f}",
+            'height': f"{new_height:.3f}"
         })
 
     return new_ktf_coordinates
 
-def write_to_ktf_format(output_file,new_coordinates):
+#def write_to_ktf_format(output_file,new_coordinates):
     """
-    Writes the processed data to a KTF format file.
+    Converts the new coordinates into KTF 'padded and justified format' and writes to a txt file.
+    INPUT:
+     - output_file: The path to the output KTF file.
+     - new_coordinates: List of dictionaries containing the new coordinates.
+    OUTPUT:
+        - Writes the new coordinates to the specified output file in KTF format.
     """
+    """
+    KTF STYLE: 
+    Original File name: path
+    New E     ,New N     ,ht        , Joint Pt ID , Code/-E  , Description
+    12 char JL,12 char JL,12 char JL, 13 char JL  ,10 char JR, 4 char JR
+    
+    """
+    
+    
+    
     with open(output_file, 'w', newline='') as file:
         writer = csv.writer(file)
         # Write header
