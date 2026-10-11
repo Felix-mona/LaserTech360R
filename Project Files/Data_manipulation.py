@@ -149,7 +149,7 @@ def calculate_new_coordinates(disto_data, xpad_data):
 
     return new_ktf_coordinates
 
-#def write_to_ktf_format(output_file,new_coordinates):
+def write_to_ktf_format(output_file,new_coordinates):
     """
     Converts the new coordinates into KTF 'padded and justified format' and writes to a txt file.
     INPUT:
@@ -165,18 +165,20 @@ def calculate_new_coordinates(disto_data, xpad_data):
     12 char JL,12 char JL,12 char JL, 13 char JL  ,10 char JR, 4 char JR
     
     """
+    with open(output_file, 'w') as file:
+        file.write("Original File name: " + output_file + "\n")
+        for row in new_coordinates:
+            line = (
+                f"{row['eastings']:>12}"
+                f"{row['northings']:>12}"
+                f"{row['height']:>12}"
+                f"{" ":>5}"
+                f"{row['Joint Pt ID']:<15}"
+                f"{row['Code/-E']:<4}"
+                f"{" ":>1}"
+                f"{row['Description']}"
+            )
+            file.write(line + '\n')
+
+        
     
-    
-    
-    with open(output_file, 'w', newline='') as file:
-        writer = csv.writer(file)
-        # Write header
-        writer.writerow(['Eastings', 'Northings','Joint Pt ID','Code/-E','Description'])
-        for new_coord in new_coordinates:
-            writer.writerow([
-                new_coord['eastings'],
-                new_coord['northings'],
-                new_coord['Joint Pt ID'],
-                new_coord['Code/-E'],
-                new_coord['Description']
-            ])

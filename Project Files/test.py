@@ -25,10 +25,11 @@ for item in data:
     line = (
         f"{item['eastings']:>12}"
         f"{item['northings']:>12}"
-        f"{item['height']:>19}"
-        f"{item['Joint Pt ID']:>10}"
-        f"{" ":>2}"
-        f"{item['Code/-E']:<5}"
+        f"{item['height']:>12}"
+        f"{" ":>5}"
+        f"{item['Joint Pt ID']:<15}"
+        f"{item['Code/-E']:<4}"
+        f"{" ":>1}"
         f"{item['Description']}"
     )
 
